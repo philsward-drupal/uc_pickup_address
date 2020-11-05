@@ -28,3 +28,10 @@ To mass change a product from one pickup address to another, do the following
 6) In the **Select Address** dropdown, choose the new address
 7) Click the [Change product pickup address] button
 8) Done!
+
+## UX EXPECTATION
+
+If you move all products out of an address, it will automatically DELETE that address from the table. One product must remain with an address to keep it in the table, otherwise it's gone for good.
+
+## KNOWN ISSUES
+v1.6 has a bug when switching between countries. It does not respect the State\Province change. Make sure you verify the correct State\Province before saving if you are switching countries.
