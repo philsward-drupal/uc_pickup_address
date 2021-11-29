@@ -1,0 +1,9 @@
+name = Pickup Address Manager
+description = "Help administrators managing multiple pickup addresses"
+dependencies[] = uc_store
+dependencies[] = uc_quote
+package = "Ubercart - extra"
+core = 7.x
+configure = admin/store/products/uc_pickup_address
+version = "7.x-1.6"
+files[] = uc_pickup_address.module

@@ -1,0 +1,148 @@
+<?php
+/**
+ * @file
+ * Ubercart Pickup Address Manager
+ *
+ */
+ 
+/**
+ * Implements hook_menu().
+ */
+function uc_pickup_address_menu() {
+  $items = array();
+
+  $items['admin/store/products/uc_pickup_address'] = array(
+    'title' => 'Product Pickup Addresses',
+    'description' => 'Edit product pickup address settings.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('uc_pickup_address_admin_form'),
+    'access arguments' => array('administer store'),
+    'type' => MENU_LOCAL_TASK,
+    'weight' => 5,
+    'file' => 'uc_pickup_address.admin.inc',
+  );
+  
+  $items['admin/store/products/uc_pickup_address/%'] = array(
+    'title' => 'List products',
+    'description' => 'View products with this pickup address',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('uc_pickup_address_admin_view_form', 4),
+    'access arguments' => array('administer store'),
+    'type' => MENU_CALLBACK,
+    'file' => 'uc_pickup_address.admin.inc',
+  );
+  return $items;
+}
+ 
+/**
+ * Implements hook_form_alter().
+ */
+function uc_pickup_address_form_alter(&$form, &$form_state, $form_id) {
+  // Alter the product node form.
+  if (uc_product_is_product_form($form)) {
+    // add an after_build handler, to make sure that the javascript is always added to the page
+    $form['#after_build'][] = '_uc_pickup_address_form_after_build';
+  }
+}
+
+/**
+ * #after_build callback for product edit forms.
+ */
+function _uc_pickup_address_form_after_build($form, &$form_state) {
+  $addresses = _uc_pickup_address_load_addresses();
+  if (isset($form['shipping']['shipping_address'])) {
+    // add a select list to the form, without an icon
+    $select = uc_shipping_select_address(
+      $addresses, 
+      'apply_address(\'shipping-address\', this.value);', 
+      t('Select address'), 
+      FALSE
+    );
+    $form['shipping']['shipping_address']['uc_pickup_address'] = $select;
+
+    // move it to the top
+    $form['shipping']['shipping_address']['uc_pickup_address']['#weight'] = -100;
+    $form['shipping']['shipping_address']['#sorted'] = 0;
+    
+    // add the javascript file that has the apply_address() function
+    drupal_add_js(drupal_get_path('module', 'uc_shipping') . '/uc_shipping.js');
+  }
+
+  return $form;
+}
+
+/**
+ * Load all the existing pickup addresses
+ */
+function _uc_pickup_address_load_addresses() {
+  $addresses = &drupal_static(__FUNCTION__);
+
+  if (!isset($addresses)) {
+    $addresses = array();
+    // get unique addresses as UcAddress class
+    $result = db_query("SELECT DISTINCT first_name, last_name, company, street1, street2, city, zone, postal_code, country, phone FROM {uc_quote_product_locations} ORDER BY company", array(), array('fetch' => 'UcAddress'));
+
+    foreach ($result as $record) { 
+      $addresses[] = $record;
+    }
+  }
+  return $addresses;
+}
+
+/**
+ * Get number of products that are located at the given address
+ */
+function _uc_pickup_address_get_address_count($address) {
+  // get the number of products that have no addresses
+  if ($address==NULL) {
+    $no_address_count = db_query(
+      "SELECT COUNT(n1.nid) as count FROM {node} n1
+       WHERE type IN (:types) AND NOT EXISTS (
+         SELECT n2.nid FROM {uc_quote_product_locations} qpl
+         LEFT JOIN {node} n2 ON n2.nid = qpl.nid
+         WHERE qpl.nid = n1.nid
+       )", array(':types' => uc_product_types()))
+    ->fetch();
+    return $no_address_count->count;
+  }
+  // get the number of products that have the given address
+  else {
+    $query = db_select('uc_quote_product_locations'); 
+    foreach ($address as $key => $value) {
+      if ($key=='email') {
+        continue;
+      }
+      $query->condition($key, $value);
+    }
+    $count = $query->countQuery()->execute()->fetchField();
+    return $count;
+  }
+}
+
+
+/**
+ * Get store address as an UcAddress object
+ */
+function _uc_pickup_address_get_store_address() {
+  // get store address
+  $store_address = variable_get('uc_quote_store_default_address', new UcAddress());
+  if (is_object($store_address)) {
+    // make sure store address is an UcAddress object
+    if (get_class($store_address)!='UcAddress') {
+      $address = new UcAddress();
+      $address->first_name = $store_address->first_name;
+      $address->last_name = $store_address->last_name;
+      $address->company = $store_address->company;
+      $address->phone = $store_address->phone;
+      $address->street1 = $store_address->street1;
+      $address->street2 = $store_address->street2;
+      $address->city = $store_address->city;
+      $address->zone = $store_address->zone;
+      $address->postal_code = $store_address->postal_code;
+      $address->country = $store_address->country;
+      $store_address = $address;
+    }
+  }
+  return $store_address;
+}
+
